@@ -2,117 +2,150 @@
 using Staff.Domain;
 using Staff.Wpf.Commands;
 using Staff.Wpf.Services;
+using Staff.Wpf.Views;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 
 namespace Staff.Wpf.ViewModels;
 
-public class EmployeeViewModel : INotifyPropertyChanged
+public class EmployeeViewModel : BaseViewModel
 {
+    private List<Employee> _employees;
+    public List<Employee> Employees
+    {
+        get => _employees;
+        set
+        {
+            _employees = value;
+            OnPropertyChanged("Employees");
+        }
+    }
+
+
+    private List<Employee> _filteredEmployees;
+    public List<Employee> FilteredEmployees
+    {
+        get => _filteredEmployees;
+        set
+        {
+            _filteredEmployees = value;
+            OnPropertyChanged("FilteredEmployees");
+        }
+    }
+
+    private Employee _selectedEmployee;
+    public Employee SelectedEmployee
+    {
+        get => _selectedEmployee;
+        set
+        {
+            _selectedEmployee = value;
+            OnPropertyChanged("SelectedEmployee");
+        }
+    }
+
+    private string _filter;
+    public string Filter
+    {
+        get => _filter;
+        set
+        {
+            _filter = value;
+            OnPropertyChanged("Filter");
+
+            FilteredEmployees = Employees.Where(x => 
+                x.FirstName.Contains(_filter, StringComparison.OrdinalIgnoreCase) ||
+                x.MiddleName.Contains(_filter, StringComparison.OrdinalIgnoreCase) ||
+                x.LastName.Contains(_filter, StringComparison.OrdinalIgnoreCase) ||
+                x.Email.Contains(_filter, StringComparison.OrdinalIgnoreCase) ||
+                x.Phone.Contains(_filter)).ToList();
+        }
+    }
+
     private readonly IEmployeeService _employeeService;
-    private readonly IDepartmentService _departmentService;
     private readonly IDialogService _dialogService;
+    private readonly EmployeeDetailView _employeeDetailView;
+    private readonly EmployeeDetailViewModel _employeeViewModel;
 
-    private Employee _employee;
-    public Employee Employee
-    {
-        get => _employee;
-        set
-        {
-            _employee = value;
-            OnPropertyChanged("Employee");
-        }
-    }
-
-    private List<Department> _departments;
-    public List<Department> Departments
-    {
-        get => _departments;
-        set
-        {
-            _departments = value;
-            OnPropertyChanged("Departments");
-        }
-    }
-
-    private Department _selectedDeparment;
-    public Department SelectedDeparment
-    {
-        get => _selectedDeparment;
-        set
-        {
-            _selectedDeparment = value;
-            OnPropertyChanged("SelectedDeparment");
-        }
-    }
-
-    public EmployeeViewModel(IEmployeeService employeeService,
-        IDepartmentService departmentService,
-        IDialogService dialogService)
+    public EmployeeViewModel(
+        IEmployeeService employeeService,
+        IDialogService dialogService,
+        EmployeeDetailView employeeDetailView,
+        EmployeeDetailViewModel employeeViewModel)
     {
         _employeeService = employeeService;
-        _departmentService = departmentService;
         _dialogService = dialogService;
+        _employeeDetailView = employeeDetailView;
+        _employeeViewModel = employeeViewModel;
 
-        Employee = new Employee();
-        Departments = new List<Department>();
+        Task.Run(async () => await UpdateEmployeeList());
     }
 
-    private RelayCommand _addEmployeeCommand;
-    public RelayCommand AddEmployeeCommand =>
-        _addEmployeeCommand ?? 
-            (_addEmployeeCommand = new RelayCommand(AddEmploeeExecute, AddEmployeeCanExecute));
+    private RelayCommand _showAddEmployeeViewCommand;
+    public RelayCommand ShowAddEmployeeViewCommand =>
+        _showAddEmployeeViewCommand ??
+            (_showAddEmployeeViewCommand = new RelayCommand(ShowAddEmploeeExecute));
 
-    private bool AddEmployeeCanExecute(object obj)
+    private async void ShowAddEmploeeExecute(object obj)
     {
-        string validEmailPattern = @"^(?!\.)(""([^""\r\\]|\\[""\r\\])*""|"
-            + @"([-a-z0-9!#$%&'*+/=?^_`{|}~]|(?<!\.)\.)*)(?<!\.)"
-            + @"@[a-z0-9][\w\.-]*[a-z0-9]\.[a-z][a-z\.]*[a-z]$";
-
-        var re = new Regex(validEmailPattern, RegexOptions.IgnoreCase);
-        var rp = new Regex(@"^(\+[0-9]{11})$");
-
-        return rp.IsMatch(Employee.Phone ?? "") &&
-            re.IsMatch(Employee.Email ?? "") &&
-            !string.IsNullOrEmpty(Employee.FirstName) &&
-            !string.IsNullOrEmpty(Employee.MiddleName) &&
-            !string.IsNullOrEmpty(Employee.LastName) &&
-            !string.IsNullOrEmpty(Employee.Position);
+        _employeeViewModel.Employee = new Employee();
+        _employeeDetailView.ShowDialog();
+        await UpdateEmployeeList();
     }
 
-    private async void AddEmploeeExecute(object obj) // Обновить главную страницу
-    {
-        Employee.Department = SelectedDeparment;
+    private RelayCommand _showEditEmployeeViewCommand;
+    public RelayCommand ShowEditEmployeeViewCommand =>
+        _showEditEmployeeViewCommand ??
+            (_showEditEmployeeViewCommand =
+                new RelayCommand(ShowEditEmploeeExecute, ShowEditEmployeeCanExcute));
 
-        try
+    private bool ShowEditEmployeeCanExcute(object arg) => SelectedEmployee != null;
+
+    private async void ShowEditEmploeeExecute(object obj)
+    {
+        _employeeViewModel.Employee = SelectedEmployee;
+        _employeeViewModel.SelectedDeparment = SelectedEmployee.Department!;
+        _employeeDetailView.ShowDialog();
+        await UpdateEmployeeList();
+    }
+
+    private RelayCommand _deleteEmployeeCommand;
+    public RelayCommand DeleteEmployeeCommand =>
+        _deleteEmployeeCommand ??
+            (_deleteEmployeeCommand = new RelayCommand(DeleteEmploeeExecute, DeleteEmployeeCanExcute));
+
+    private bool DeleteEmployeeCanExcute(object arg) => SelectedEmployee != null;
+
+    private async void DeleteEmploeeExecute(object obj)
+    {
+        if (_dialogService.ShowMessageWithChoice("Delete Employee?"))
         {
-            if (Employee.Id > 0)
-                await _employeeService.UpdateAsync(Employee);
-            else
-                await _employeeService.CreateAsync(Employee);
-
-            _dialogService.ShowMessage("successfully");
+            try
+            {
+                await _employeeService.DeleteAsync(SelectedEmployee.Id);
+                await UpdateEmployeeList();
+                _dialogService.ShowMessage("Deleted");
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
-        catch(Exception ex) { _dialogService.ShowMessage(ex.Message); }
     }
 
-    private RelayCommand _onwWindowLoadedCommand;
-    public RelayCommand OnWindowLoadedCommand =>
-        _onwWindowLoadedCommand ?? 
-            (_onwWindowLoadedCommand = new RelayCommand(OnWindowLoadedExecute));
+    private RelayCommand _refreshCommand;
+    public RelayCommand RefreshCommand =>
+        _refreshCommand ??
+            (_refreshCommand = new RelayCommand(RefreshExecute));
 
-    private async void OnWindowLoadedExecute(object obj)
+    private async void RefreshExecute(object obj)
     {
-        Departments = await _departmentService.GetAllAsync();
+        await UpdateEmployeeList();
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public void OnPropertyChanged([CallerMemberName] string prop = "")
+    private async Task UpdateEmployeeList()
     {
-        if (PropertyChanged != null)
-            PropertyChanged(this, new PropertyChangedEventArgs(prop));
+        Employees = await _employeeService.GetAllAsync();
+        FilteredEmployees = Employees;
     }
 }

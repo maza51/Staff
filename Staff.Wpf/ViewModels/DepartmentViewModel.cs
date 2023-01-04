@@ -1,70 +1,101 @@
 ﻿using Staff.Application.Interfaces;
-using Staff.Application.Services;
 using Staff.Domain;
 using Staff.Wpf.Commands;
-using Staff.Wpf.Services;
-using System;
+using Staff.Wpf.Views;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Staff.Wpf.ViewModels;
 
-public class DepartmentViewModel : INotifyPropertyChanged
+class DepartmentViewModel : BaseViewModel
 {
-    private readonly IDepartmentService _departmentService;
-    private readonly IDialogService _dialogService;
-
-    private Department _department;
-    public Department Department
+    private Employee _selectedEmployee;
+    public Employee SelectedEmployee
     {
-        get => _department;
+        get => _selectedEmployee;
         set
         {
-            _department = value;
-            OnPropertyChanged("Department");
+            _selectedEmployee = value;
+            OnPropertyChanged("SelectedEmployee");
         }
     }
-    public DepartmentViewModel(IDepartmentService departmentService, IDialogService dialogService)
+    private List<Department> _departments;
+    public List<Department> Departments
+    {
+        get => _departments;
+        set
+        {
+            _departments = value;
+            OnPropertyChanged("Departments");
+        }
+    }
+
+    private Department _selectedDepartment;
+    public Department SelectedDepartment
+    {
+        get => _selectedDepartment;
+        set
+        {
+            _selectedDepartment = value;
+            OnPropertyChanged("SelectedDepartment");
+        }
+    }
+
+    private readonly IDepartmentService _departmentService;
+    private readonly DepartmentDetailView _departmentDetailView;
+    private readonly DepartmentDetailViewModel _departmentDetailViewModel;
+
+    public DepartmentViewModel(
+        IDepartmentService departmentService,
+        DepartmentDetailView departmentDetailView,
+        DepartmentDetailViewModel departmentViewModel)
     {
         _departmentService = departmentService;
+        _departmentDetailView = departmentDetailView;
+        _departmentDetailViewModel = departmentViewModel;
 
-        Department = new Department();
-        _dialogService = dialogService;
+        Task.Run(async () => await UpdateDepartmentList());
     }
 
-    private RelayCommand _addDepartmentCommand;
-    public RelayCommand AddDepartmentCommand =>
-        _addDepartmentCommand ??
-            (_addDepartmentCommand = new RelayCommand(AddDepartmentExecute, AddDepartmentCanExecute));
+    private RelayCommand _showAddDepartmentViewCommand;
+    public RelayCommand ShowAddDepartmentViewCommand =>
+        _showAddDepartmentViewCommand ??
+            (_showAddDepartmentViewCommand = new RelayCommand(ShowAddDepartmentExecute));
 
-    private bool AddDepartmentCanExecute(object obj)
+    private async void ShowAddDepartmentExecute(object obj)
     {
-        return !string.IsNullOrEmpty(Department.Name);
+        _departmentDetailViewModel.Department = new Department();
+        _departmentDetailView.ShowDialog();
+        await UpdateDepartmentList();
     }
 
-    private async void AddDepartmentExecute(object obj) // Обновить главную страницу
-    {
-        try
-        {
-            if (Department.Id > 0)
-                await _departmentService.UpdateAsync(Department);
-            else
-                await _departmentService.CreateAsync(Department);
+    private RelayCommand _showEditDepartmentViewCommand;
+    public RelayCommand ShowEditDepartmentViewCommand =>
+        _showEditDepartmentViewCommand ??
+            (_showEditDepartmentViewCommand =
+                new RelayCommand(ShowEditDepartmentExecute, ShowEditDepartmentCanExcute));
 
-            _dialogService.ShowMessage("successfully");
-        }
-        catch (Exception ex) { _dialogService.ShowMessage(ex.Message); }
+    private bool ShowEditDepartmentCanExcute(object arg) => SelectedDepartment != null;
+
+    private async void ShowEditDepartmentExecute(object obj)
+    {
+        _departmentDetailViewModel.Department = SelectedDepartment;
+        _departmentDetailView.ShowDialog();
+        await UpdateDepartmentList();
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public void OnPropertyChanged([CallerMemberName] string prop = "")
+    private RelayCommand _refreshCommand;
+    public RelayCommand RefreshCommand =>
+        _refreshCommand ??
+            (_refreshCommand = new RelayCommand(RefreshExecute));
+
+    private async void RefreshExecute(object obj)
     {
-        if (PropertyChanged != null)
-            PropertyChanged(this, new PropertyChangedEventArgs(prop));
+        await UpdateDepartmentList();
+    }
+
+    private async Task UpdateDepartmentList()
+    {
+        Departments = await _departmentService.GetAllAsync();
     }
 }

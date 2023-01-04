@@ -1,33 +1,21 @@
 ﻿using Staff.Wpf.ViewModels;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
-namespace Staff.Wpf.Views
+namespace Staff.Wpf.Views;
+
+public partial class MainView : Window
 {
-    public partial class MainView : Window
+    public MainView(MainViewModel mainViewMidel)
     {
-        public MainView(MainViewModel mainViewMidel)
-        {
-            DataContext = mainViewMidel;
-            InitializeComponent();
-        }
+        DataContext = mainViewMidel;
+        InitializeComponent();
+    }
 
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
 
-            System.Windows.Application.Current.Shutdown();
-        }
+        ((App)App.Current).Shutdown();
     }
 }

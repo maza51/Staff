@@ -9,4 +9,5 @@ public interface IEmployeeService
     Task<Employee> UpdateAsync(Employee employee);
     Task DeleteAsync(int id);
     Task<Employee> CreateAsync(Employee employee);
+    Task ImportProcessAsync(List<Employee> employees);
 }

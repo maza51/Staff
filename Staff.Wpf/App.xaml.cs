@@ -1,41 +1,51 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Staff.Application;
 using Staff.DataAccess;
+using Staff.Domain;
 using Staff.Wpf.Services;
 using Staff.Wpf.ViewModels;
 using Staff.Wpf.Views;
+using System.Collections.Generic;
 using System.Windows;
 
-namespace Staff.Wpf
+namespace Staff.Wpf;
+
+public partial class App : System.Windows.Application
 {
-    public partial class App : System.Windows.Application
+    public readonly ServiceProvider ServiceProvider;
+    public App()
     {
-        private readonly ServiceProvider _serviceProvider;
-        public App()
-        {
-            var serviceCollection = new ServiceCollection();
-            ConfigureServices(serviceCollection);
+        var serviceCollection = new ServiceCollection();
+        ConfigureServices(serviceCollection);
 
-            _serviceProvider = serviceCollection.BuildServiceProvider();
-        }
+        ServiceProvider = serviceCollection.BuildServiceProvider();
+    }
 
-        private void ConfigureServices(IServiceCollection services)
-        {
-            services.AddSingleton<MainView>();
-            services.AddTransient<MainViewModel>();
-            services.AddTransient<EmployeeView>();
-            services.AddSingleton<EmployeeViewModel>();
-            services.AddTransient<DepartmentView>();
-            services.AddSingleton<DepartmentViewModel>();
-            services.AddTransient<IDialogService, DefaultDialogService>();
-            services.AddApplication();
-            services.AddDataAccess();
-        }
+    private void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<MainView>();
+        services.AddTransient<EmployeeView>();
+        services.AddTransient<DepartmentView>();
+        services.AddTransient<EmployeeDetailView>();
+        services.AddTransient<DepartmentDetailView>();
 
-        private void OnStartup(object sender, StartupEventArgs e)
-        {
-            var mainWindow = _serviceProvider.GetService<MainView>();
-            mainWindow?.Show();
-        }
+        services.AddTransient<MainViewModel>();
+        services.AddTransient<EmployeeViewModel>();
+        services.AddTransient<DepartmentViewModel>();
+        services.AddSingleton<EmployeeDetailViewModel>();
+        services.AddSingleton<DepartmentDetailViewModel>();
+
+        services.AddTransient<IDialogService, DefaultDialogService>();
+        services.AddTransient<IExporter<List<Employee>>, XmlEmployeeExporter>();
+        services.AddTransient<IImporter<List<Employee>>, XmlEmployeeImporter>();
+
+        services.AddApplication();
+        services.AddDataAccess();
+    }
+
+    private void OnStartup(object sender, StartupEventArgs e)
+    {
+        var mainWindow = ServiceProvider.GetService<MainView>();
+        mainWindow?.Show();
     }
 }
